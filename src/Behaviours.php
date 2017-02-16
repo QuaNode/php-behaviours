@@ -9,21 +9,22 @@
 class Behaviours
 {
 
-    public static function instance($baseURL,$defaults,$localStorageFnGet,$localStorageFnSet){ // localStorageFN Last Parameters instead of it we will use 2 fns storage set and storage get
+    public static function instance($baseURL,$localStorageFnGet,$localStorageFnSet,$curlExectution,$defaults=null){ // localStorageFN Last Parameters instead of it we will use 2 fns storage set and storage get
         static $instance = null;
         if($instance === null){
-            $instance = new self($baseURL,$defaults,$localStorageFnGet,$localStorageFnSet);
+            $instance = new self($baseURL,$localStorageFnGet,$localStorageFnSet,$curlExectution,$defaults);
         }
         return $instance;
     }
     private $behavioursJson ;
     private $localStorageGet ;
     private $localStorageSet ;
+    private $curlExecution;
     private $baseUrl = '';// null instead of an array
     //private $keys = array(); // null instead of an array ,, inside getBehaviour
     //private $behavioursArray = array(); // not needed
     //private $params;
-    private function __construct($baseURL, $defaults = null, $storageGet ,$storageSet)
+    private function __construct($baseURL, $storageGet ,$storageSet,$curlExecution,$defaults = null)
     {
         // construct(bas,storageGet)
         //
@@ -32,12 +33,15 @@ class Behaviours
         $this->localStorageGet = $storageGet;
         $this->localStorageSet = $storageSet;
         $this->baseUrl = $baseURL;
+        $this->curlExecution = $curlExecution;
         foreach ($defaults as $k => $v) {
             $this->parameters->$k = $v;
         }
+
         $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, $baseURL . '/behaviours');
-        $this->behavioursJson = curl_exec($curl); // check for curl error else throw error
+        curl_setopt($curl,CURLOPT_RETURNTRANSFER,1);
+        $this->behavioursJson = $curlExecution($curl); // check for curl error else throw error
         $this->behavioursJson = json_decode($this->behavioursJson);
         // { "key" : "value" } {
         //      $key = "value"
@@ -53,7 +57,8 @@ class Behaviours
         if($this->behavioursJson) {
             if(isset($this->behavioursJson[$behaviourName])) {
                 $behaviour = $this->behavioursJson[$behaviourName];
-                return function($behaviourData) use ($behaviour,$behaviourName){
+                $curl = $this->curlExecution;
+                return function($behaviourData) use ($behaviour,$behaviourName,$curl){
                     if(!$behaviourData)
                         $behaviourData = array();
                     if (!(count($behaviour['parameters']) > 0)) {
@@ -120,7 +125,7 @@ class Behaviours
                     curl_setopt($call, CURLOPT_POSTFIELDS, $data);
                     curl_setopt($call,CURLOPT_CUSTOMREQUEST,strtoupper($behaviour['method']));
                     curl_setopt($call,CURLOPT_RETURNTRANSFER,1);
-                    $response = curl_exec($call);
+                    $response = $curl($call);
                     return $response;
                 };
             }
